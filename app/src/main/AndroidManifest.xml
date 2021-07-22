@@ -2,6 +2,8 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     package="com.example.mycamera">
 
+    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE"/>  // パーミッションの設定
+
     <queries>   // このアプリがアクセスできる他のアプリを宣言
         <intent>
             <action android:name="android.media.action.IMAGE_CAPTURE" />

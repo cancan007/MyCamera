@@ -1,12 +1,17 @@
 package com.example.mycamera
 
+import android.Manifest
 import android.content.ContentValues
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.graphics.Bitmap
 import android.net.Uri
+import android.os.Build
 import androidx.appcompat.app.AppCompatActivity
 import android.os.Bundle
 import android.provider.MediaStore
+import androidx.core.app.ActivityCompat
+import androidx.core.content.ContextCompat
 import com.example.mycamera.databinding.ActivityMainBinding
 import java.text.SimpleDateFormat
 import java.util.*
@@ -14,6 +19,7 @@ import java.util.*
 class MainActivity : AppCompatActivity() {
     val REQUEST_PREVIEW = 1  // intentで遷移する先を整数で指定している
     val REQUEST_PICTURE = 2
+    val REQUEST_EXTERNAL_STORAGE = 3
 
     lateinit var currentPhotoUri: Uri
 
@@ -38,7 +44,40 @@ class MainActivity : AppCompatActivity() {
                 R.id.takePicture -> takePicture()
             }
         }
+
+        if(Build.VERSION.SDK_INT <= Build.VERSION_CODES.P){
+            storagePermission()
+        }
     }
+
+    private fun storagePermission(){  // 権限の確認ウィンドウを表示する
+        val permission = ContextCompat.checkSelfPermission(  //ContextCompat.checkSelfPermission: パーミッションが許可されたかどうかを戻り値とする
+            this,
+            Manifest.permission.WRITE_EXTERNAL_STORAGE  // WRITE_EXTERNAL_STORAGE: 外部アプリのディレクトリに書き込みを行うパーミッションを申請
+        )
+        if(permission != PackageManager.PERMISSION_GRANTED){ // 許可されていればPERMISSION_GRANTED
+            ActivityCompat.requestPermissions(  //requestPermissions: パーミッションを要求するダイアログを表示、選択後onRequestPermissionsResultコールバックを呼ぶ
+                this,
+                arrayOf(Manifest.permission.WRITE_EXTERNAL_STORAGE),  // 要求するパーミッション名の配列
+                REQUEST_EXTERNAL_STORAGE
+            )
+        }
+    }
+
+    override fun onRequestPermissionsResult( //ユーザーがダイアログで許可か許可しないを選択したとき呼び出される
+        requestCode: Int,
+        permissions: Array<out String>,
+        grantResults: IntArray  // パーミッションが許可されたか不許可か(PERMISSION_GRANTED か PERMISSION_DENIED)
+    ){
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+        when (requestCode){
+            REQUEST_EXTERNAL_STORAGE -> {
+                binding.cameraButton.isEnabled = grantResults.isNotEmpty() &&  // 不許可であればボタンを利用不可状態、許可であれば利用可能
+                        grantResults[0] == PackageManager.PERMISSION_GRANTED
+            }
+        }
+    }
+
     private fun preview() {
         // 暗黙的インテント: 意図だけを伝え、どの機能が用いられるかはAndroid OSに任せる
         Intent(MediaStore.ACTION_IMAGE_CAPTURE).also { intent ->  // also: スコープ関数の一つ
@@ -74,7 +113,13 @@ class MainActivity : AppCompatActivity() {
             binding.imageView.setImageBitmap(imageBitmap)  // imageViewに取得した画像を表示
         } else if(requestCode == REQUEST_PICTURE){
             when(resultCode){
-                RESULT_OK ->{}
+                RESULT_OK ->{  // この項はInstagramなどのSNSに共有できるようにするためのもの
+                    Intent(Intent.ACTION_SEND).also{share ->
+                        share.type = "image/*"
+                        share.putExtra(Intent.EXTRA_STREAM, currentPhotoUri)   //共有する画像ファイルの場所をUriで指定します
+                        startActivity(Intent.createChooser(share, "Share to"))  //createChooser: アプリ選択画面を表示するためのインテントを作成し、startActivityに渡している
+                    }
+                }
                 else ->{
                     contentResolver.delete(currentPhotoUri, null, null)  //撮影がキャンセルされたときにファイルが不要となりますのでdeleteで削除している
                 }
